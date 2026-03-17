@@ -1,0 +1,64 @@
+{
+  "name": "crud-api",
+  "version": "1.0.0",
+  "description": "CRUD API for product catalog using Fastify and TypeScript",
+  "main": "dist/index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "build": "tsup",
+    "start:dev": "cross-env NODE_ENV=development ts-node-dev --respawn --transpile-only src/index.ts",
+    "start:prod": "cross-env NODE_ENV=production node dist/index.js",
+    "lint": "eslint \"src/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
+    "format": "prettier \"src/**/*.{ts,tsx}\" --check",
+    "format:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Andrey-Yurchuk/crud-api.git"
+  },
+  "keywords": [],
+  "author": "Andrey Yurchuk",
+  "license": "MIT",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Andrey-Yurchuk/crud-api/issues"
+  },
+  "homepage": "https://github.com/Andrey-Yurchuk/crud-api#readme",
+  "dependencies": {
+    "cross-env": "^10.1.0",
+    "dotenv": "^17.3.1",
+    "fastify": "^5.8.2",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.57.1",
+    "@typescript-eslint/parser": "^8.57.1",
+    "eslint": "^10.0.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-prettier": "^5.5.5",
+    "prettier": "^3.8.1",
+    "ts-node-dev": "^2.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  },
+  "tsup": {
+    "entry": [
+      "src/index.ts"
+    ],
+    "outDir": "dist",
+    "format": [
+      "cjs"
+    ],
+    "clean": true,
+    "dts": false,
+    "minify": false,
+    "sourcemap": true,
+    "target": "node22"
+  }
+}
