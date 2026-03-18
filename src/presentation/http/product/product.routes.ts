@@ -24,7 +24,7 @@ export async function registerProductRoutes(
   app.get(
     PRODUCT_ROUTES.BASE,
     async (_request: FastifyRequest, reply: FastifyReply): Promise<void> => {
-      const products = productUseCases.listProducts();
+      const products = await productUseCases.listProducts();
       void reply.code(HTTP_STATUS.OK).send(products);
     },
   );
@@ -35,7 +35,7 @@ export async function registerProductRoutes(
       const { productId } = request.params;
 
       try {
-        const product = productUseCases.getProduct(productId);
+        const product = await productUseCases.getProduct(productId);
         void reply.code(HTTP_STATUS.OK).send(product);
       } catch (error: unknown) {
         if (isProductApplicationError(error)) {
@@ -52,7 +52,7 @@ export async function registerProductRoutes(
     PRODUCT_ROUTES.BASE,
     async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
       try {
-        const created = productUseCases.createProduct(request.body);
+        const created = await productUseCases.createProduct(request.body);
         void reply.code(HTTP_STATUS.CREATED).send(created);
       } catch (error: unknown) {
         if (isProductApplicationError(error)) {
@@ -71,7 +71,7 @@ export async function registerProductRoutes(
       const { productId } = request.params;
 
       try {
-        const updated = productUseCases.updateProduct(productId, request.body);
+        const updated = await productUseCases.updateProduct(productId, request.body);
         void reply.code(HTTP_STATUS.OK).send(updated);
       } catch (error: unknown) {
         if (isProductApplicationError(error)) {
@@ -90,7 +90,7 @@ export async function registerProductRoutes(
       const { productId } = request.params;
 
       try {
-        productUseCases.deleteProduct(productId);
+        await productUseCases.deleteProduct(productId);
         void reply.code(HTTP_STATUS.NO_CONTENT).send();
       } catch (error: unknown) {
         if (isProductApplicationError(error)) {
