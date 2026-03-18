@@ -11,21 +11,21 @@ import type {
   ProductUpdateDto,
 } from "../../domain/product/product.types";
 import { validateProductPayload } from "../../domain/product/product.validation";
-import { mapProductDomainErrorToApplication } from "./map-product-domain-error";
+import { mapProductDomainErrorToApplication } from "./product-map-domain-error";
 
 export function createProductUseCases(repository: ProductRepository) {
   return {
-    listProducts(): Product[] {
+    async listProducts(): Promise<Product[]> {
       return repository.findAll();
     },
 
-    getProduct(id: string): Product {
+    async getProduct(id: string): Promise<Product> {
       try {
         if (!validateUuid(id)) {
           throw new InvalidProductIdError();
         }
 
-        const product = repository.findById(id);
+        const product = await repository.findById(id);
 
         if (!product) {
           throw new ProductNotFoundError();
@@ -37,7 +37,7 @@ export function createProductUseCases(repository: ProductRepository) {
       }
     },
 
-    createProduct(payload: unknown): Product {
+    async createProduct(payload: unknown): Promise<Product> {
       try {
         const validationResult = validateProductPayload(payload);
 
@@ -47,13 +47,13 @@ export function createProductUseCases(repository: ProductRepository) {
           );
         }
 
-        return repository.create(validationResult.value as ProductCreateDto);
+        return await repository.create(validationResult.value as ProductCreateDto);
       } catch (error: unknown) {
         mapProductDomainErrorToApplication(error);
       }
     },
 
-    updateProduct(id: string, payload: unknown): Product {
+    async updateProduct(id: string, payload: unknown): Promise<Product> {
       try {
         if (!validateUuid(id)) {
           throw new InvalidProductIdError();
@@ -67,7 +67,7 @@ export function createProductUseCases(repository: ProductRepository) {
           );
         }
 
-        const updated = repository.update(id, validationResult.value as ProductUpdateDto);
+        const updated = await repository.update(id, validationResult.value as ProductUpdateDto);
 
         if (!updated) {
           throw new ProductNotFoundError();
@@ -79,13 +79,13 @@ export function createProductUseCases(repository: ProductRepository) {
       }
     },
 
-    deleteProduct(id: string): void {
+    async deleteProduct(id: string): Promise<void> {
       try {
         if (!validateUuid(id)) {
           throw new InvalidProductIdError();
         }
 
-        const deleted = repository.delete(id);
+        const deleted = await repository.delete(id);
 
         if (!deleted) {
           throw new ProductNotFoundError();
