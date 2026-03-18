@@ -10,15 +10,15 @@ const products = new Map<string, Product>();
 
 export function createMemoryProductRepository(): ProductRepository {
   return {
-    findAll(): Product[] {
+    async findAll(): Promise<Product[]> {
       return Array.from(products.values());
     },
 
-    findById(id: string): Product | undefined {
+    async findById(id: string): Promise<Product | undefined> {
       return products.get(id);
     },
 
-    create(dto: ProductCreateDto): Product {
+    async create(dto: ProductCreateDto): Promise<Product> {
       const id = randomUUID();
       const product: Product = {
         id,
@@ -28,7 +28,7 @@ export function createMemoryProductRepository(): ProductRepository {
       return product;
     },
 
-    update(id: string, dto: ProductUpdateDto): Product | undefined {
+    async update(id: string, dto: ProductUpdateDto): Promise<Product | undefined> {
       if (!products.has(id)) {
         return undefined;
       }
@@ -40,7 +40,7 @@ export function createMemoryProductRepository(): ProductRepository {
       return updated;
     },
 
-    delete(id: string): boolean {
+    async delete(id: string): Promise<boolean> {
       return products.delete(id);
     },
   };
