@@ -1,0 +1,8 @@
+export const PRODUCT_ERROR_CODES = {
+  INVALID_PRODUCT_ID: "INVALID_PRODUCT_ID",
+  PRODUCT_NOT_FOUND: "PRODUCT_NOT_FOUND",
+  INVALID_PAYLOAD: "INVALID_PAYLOAD",
+} as const;
+
+export type ProductApplicationErrorCode =
+  (typeof PRODUCT_ERROR_CODES)[keyof typeof PRODUCT_ERROR_CODES];
