@@ -1,13 +1,14 @@
 import cluster from "node:cluster";
+import { fork, type ChildProcess } from "node:child_process";
 import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import fastify, { type FastifyInstance, type FastifyReply, type FastifyRequest } from "fastify";
 import dotenv from "dotenv";
 import { HTTP_STATUS } from "../../presentation/http/http-status-codes";
 import { createProductUseCases } from "../../application/product/product.use-cases";
 import { registerProductRoutes } from "../../presentation/http/product/product.routes";
-import { createMemoryProductRepository } from "../product/product.repository.memory";
-import { createIpcProductRepository } from "../product/product.repository.ipc";
-import type { ProductCreateDto, ProductUpdateDto } from "../../domain/product/product.types";
+import { createHttpProductRepository } from "../product/product.repository.http";
 import {
   APPLICATION_JSON_MIME_SUBSTRING,
   API_PROXY_PATH,
@@ -24,32 +25,9 @@ import {
   WORKER_PORT_OFFSET,
 } from "./cluster.constants";
 import {
-  PRODUCT_REPO_IPC_REQUEST_TYPE,
-  PRODUCT_REPO_IPC_RESPONSE_TYPE,
-  PRODUCT_REPO_OPERATIONS,
-  type ProductRepoOperation,
-} from "./product-repo-ipc.constants";
-
-type ProductRepoRequestMessage = {
-  type: typeof PRODUCT_REPO_IPC_REQUEST_TYPE;
-  reqId: number;
-  operation: ProductRepoOperation;
-  args: unknown[];
-};
-
-type ProductRepoResponseMessage =
-  | {
-      type: typeof PRODUCT_REPO_IPC_RESPONSE_TYPE;
-      reqId: number;
-      ok: true;
-      result: unknown;
-    }
-  | {
-      type: typeof PRODUCT_REPO_IPC_RESPONSE_TYPE;
-      reqId: number;
-      ok: false;
-      error: { message: string; name?: string };
-    };
+  STATE_SERVICE_DEFAULT_PORT,
+  STATE_SERVICE_HOST,
+} from "../state-service/state-service.constants";
 
 function getBasePort(): number {
   const portEnv = process.env.PORT;
@@ -64,7 +42,7 @@ async function startWorker(): Promise<void> {
   const port = getBasePort();
   const app: FastifyInstance = fastify();
 
-  const productRepository = createIpcProductRepository();
+  const productRepository = createHttpProductRepository();
   const productUseCases = createProductUseCases(productRepository);
 
   void app.get(HEALTH_PATH, async () => {
@@ -90,6 +68,39 @@ async function startWorker(): Promise<void> {
 
   await app.listen({ port, host: CLUSTER_HOST });
   console.log(`Worker is running on port ${port}`);
+}
+
+function getStateServicePort(): number {
+  const portEnv = process.env.STATE_SERVICE_PORT;
+  const port = portEnv ? Number(portEnv) : STATE_SERVICE_DEFAULT_PORT;
+  if (!Number.isFinite(port) || port <= 0) return STATE_SERVICE_DEFAULT_PORT;
+  return port;
+}
+
+function startStateServiceProcess(): ChildProcess {
+  const currentFilePath = fileURLToPath(import.meta.url);
+  const currentDir = path.dirname(currentFilePath);
+  const stateServiceScriptPath = path.resolve(
+    currentDir,
+    "../state-service/start-state-service.js",
+  );
+
+  const child = fork(stateServiceScriptPath, {
+    env: {
+      ...process.env,
+      STATE_SERVICE_PORT: String(getStateServicePort()),
+      STATE_SERVICE_HOST,
+    },
+    stdio: "inherit",
+  });
+
+  child.on("exit", (code) => {
+    if (code !== 0) {
+      console.error(`State service exited with code ${code}`);
+    }
+  });
+
+  return child;
 }
 
 function startLoadBalancer(workerPorts: number[]): void {
@@ -171,6 +182,12 @@ function startLoadBalancer(workerPorts: number[]): void {
     },
   );
 
+  app.setNotFoundHandler(async (request: FastifyRequest, reply: FastifyReply): Promise<void> => {
+    void reply.code(HTTP_STATUS.NOT_FOUND).send({
+      message: `Route ${request.method} ${request.url} not found`,
+    });
+  });
+
   void app.listen({ port: basePort, host: CLUSTER_HOST }).then(() => {
     console.log(`Load balancer is running on port ${basePort}`);
   });
@@ -185,51 +202,7 @@ async function startMaster(): Promise<void> {
     { length: workerCount },
     (_, i) => basePort + i + WORKER_PORT_OFFSET,
   );
-
-  const productRepository = createMemoryProductRepository();
-
-  cluster.on("message", async (worker, message: unknown) => {
-    const msg = message as ProductRepoRequestMessage;
-    if (!msg || typeof msg !== "object") return;
-    if (msg.type !== PRODUCT_REPO_IPC_REQUEST_TYPE) return;
-
-    const workerProcess = worker as cluster.Worker;
-
-    try {
-      let result: unknown;
-      if (msg.operation === PRODUCT_REPO_OPERATIONS.FIND_ALL) {
-        result = await productRepository.findAll();
-      } else if (msg.operation === PRODUCT_REPO_OPERATIONS.FIND_BY_ID) {
-        result = await productRepository.findById(msg.args[0] as string);
-      } else if (msg.operation === PRODUCT_REPO_OPERATIONS.CREATE) {
-        result = await productRepository.create(msg.args[0] as ProductCreateDto);
-      } else if (msg.operation === PRODUCT_REPO_OPERATIONS.UPDATE) {
-        result = await productRepository.update(
-          msg.args[0] as string,
-          msg.args[1] as ProductUpdateDto,
-        );
-      } else if (msg.operation === PRODUCT_REPO_OPERATIONS.DELETE) {
-        result = await productRepository.delete(msg.args[0] as string);
-      }
-
-      const response: ProductRepoResponseMessage = {
-        type: PRODUCT_REPO_IPC_RESPONSE_TYPE,
-        reqId: msg.reqId,
-        ok: true,
-        result,
-      };
-      workerProcess.send(response);
-    } catch (error: unknown) {
-      const err = error as Error;
-      const response: ProductRepoResponseMessage = {
-        type: PRODUCT_REPO_IPC_RESPONSE_TYPE,
-        reqId: msg.reqId,
-        ok: false,
-        error: { message: err.message, name: err.name },
-      };
-      workerProcess.send(response);
-    }
-  });
+  const stateService = startStateServiceProcess();
 
   const workers: cluster.Worker[] = [];
   for (let i = 0; i < workerCount; i += 1) {
@@ -239,6 +212,15 @@ async function startMaster(): Promise<void> {
   }
 
   startLoadBalancer(workerPorts);
+
+  process.on("SIGTERM", () => {
+    stateService.kill("SIGTERM");
+  });
+
+  process.on("SIGINT", () => {
+    stateService.kill("SIGINT");
+  });
+
   void Promise.all(workers.map((w) => w.process.pid)).then(() => undefined);
 }
 
