@@ -15,7 +15,7 @@
     "lint:fix": "eslint \"src/**/*.{ts,tsx}\" --fix",
     "format": "prettier \"src/**/*.{ts,tsx}\" --check",
     "format:fix": "prettier \"src/**/*.{ts,tsx}\" --write",
-    "test": "npm run build && node --test tests/api.test.js"
+    "test": "npm run build && node --test --test-concurrency=1 tests/*.test.js"
   },
   "repository": {
     "type": "git",
@@ -51,7 +51,8 @@
   "tsup": {
     "entry": [
       "src/index.ts",
-      "src/infrastructure/cluster/start-multi.ts"
+      "src/infrastructure/cluster/start-multi.ts",
+      "src/infrastructure/state-service/start-state-service.ts"
     ],
     "outDir": "dist",
     "format": [
